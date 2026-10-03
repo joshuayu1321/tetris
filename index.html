@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Retro Blocks</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0b14; --bg2:#11111c; --frame:#46557a; --frame-hi:#7d8db0;
+  --text:#d4d4d4; --dim:#6e6e82; --accent:#e0a040; --red:#c84030; --green:#58c898;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  background-color:var(--bg);
+  background-image:
+    linear-gradient(45deg,var(--bg2) 25%,transparent 25%,transparent 75%,var(--bg2) 75%),
+    linear-gradient(45deg,var(--bg2) 25%,transparent 25%,transparent 75%,var(--bg2) 75%);
+  background-size:16px 16px; background-position:0 0,8px 8px;
+  color:var(--text); font-family:'Press Start 2P',monospace;
+  display:flex; align-items:center; justify-content:center;
+  -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+}
+#outer{position:relative}
+#scaler{position:absolute;top:0;left:0;width:660px;transform-origin:0 0}
+#game{position:relative;width:660px;height:580px;display:grid;grid-template-columns:180px 256px 180px;gap:12px;padding:16px;justify-content:center;align-content:start}
+.col{display:flex;flex-direction:column;gap:12px}
+.panel{background:#000;border:4px solid var(--frame);border-radius:6px;box-shadow:0 0 0 2px #000,inset 0 0 0 2px #000,0 0 0 4px var(--frame-hi);padding:10px;text-align:center}
+.label{font-size:11px;margin-bottom:10px}
+.val{font-size:14px}
+.small{font-size:8px;color:var(--dim);line-height:2}
+#hdr{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
+#mode{font-size:9px;color:var(--dim)}
+#lines{font-size:13px}
+#boardP{padding:0;line-height:0}
+canvas{display:block;margin:0 auto;filter:brightness(.86) saturate(.85)}
+
+/* overlay screens */
+#screen{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(6,6,14,.96);text-align:center;padding:24px}
+#screen[hidden]{display:none}
+.title{font-size:44px;line-height:1.3;display:flex;flex-direction:column;letter-spacing:4px;margin-bottom:8px}
+.title span:first-child{color:var(--red);text-shadow:4px 4px 0 #3a1010}
+.title span:last-child{color:#3c84d0;text-shadow:4px 4px 0 #101c38}
+.menu{display:flex;flex-direction:column;gap:4px;min-width:280px}
+.btn{font:inherit;font-size:14px;color:var(--text);background:none;border:0;padding:8px 12px 8px 30px;text-align:left;cursor:pointer;position:relative;outline:none}
+.btn:focus{color:var(--accent)}
+.btn:focus::before{content:'\25BA';position:absolute;left:8px;animation:blink .7s steps(2) infinite}
+.btn.row{display:flex;justify-content:space-between;gap:24px;min-width:440px}
+.btn.tab{font-size:16px;text-align:center;padding-left:12px}
+.btn.tab:focus::before{content:none}
+.btn.tab span{color:var(--accent);padding:0 8px}
+@keyframes blink{50%{opacity:0}}
+.sep{height:10px}
+.desc{color:var(--dim);font-size:9px;min-height:12px;line-height:1.6;margin:4px 0 0}
+.foot{color:var(--dim);font-size:8px;position:absolute;bottom:16px;left:0;right:0;margin:0}
+h2{font-size:20px;color:var(--accent);margin:0 0 4px;font-weight:normal}
+.sub{font-size:9px;color:var(--dim);margin:0}
+table{border-collapse:collapse;font-size:11px}
+td,th{padding:5px 10px;text-align:right}
+th{color:var(--dim);font-weight:normal;font-size:8px}
+td.name{text-align:left}
+tr.gold td{color:#d8b040}
+tr.hl td{color:var(--green);animation:blink 1s steps(2) infinite}
+tr.empty td{color:#34344a}
+.stats{display:grid;grid-template-columns:auto auto;gap:10px 40px;font-size:11px;text-align:left;margin:8px 0}
+.stats span:nth-child(even){text-align:right;color:var(--accent)}
+.accent{color:var(--green);font-size:12px;margin:0;animation:blink 1s steps(2) infinite}
+form{display:flex;flex-direction:column;align-items:center;gap:12px}
+form label{font-size:10px;color:var(--dim)}
+#nameIn{font:inherit;font-size:18px;width:9ch;padding:10px;text-align:center;text-transform:uppercase;background:#000;color:var(--accent);border:3px solid var(--frame);outline:none;border-radius:4px}
+
+/* CRT scanlines */
+#crt{position:absolute;inset:0;pointer-events:none;z-index:10;display:none;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.22) 0 1px,transparent 1px 3px);
+  box-shadow:inset 0 0 120px rgba(0,0,0,.6)}
+body.crt #crt{display:block}
+
+/* touch controls */
+#touch{display:none;width:660px;padding:8px 40px 16px;grid-template-columns:repeat(4,1fr);gap:14px}
+body.touch #touch{display:grid}
+#touch button{font:inherit;font-size:16px;height:76px;color:var(--text);background:#000;border:4px solid var(--frame);border-radius:10px;touch-action:none}
+#touch button:active{background:#1c2234;color:var(--accent)}
+</style>
+</head>
+<body class="crt">
+<div id="outer"><div id="scaler">
+  <div id="game">
+    <div class="col">
+      <div class="panel"><div class="label">HOLD</div><canvas id="holdC" width="112" height="56"></canvas></div>
+      <div class="panel"><div class="label">STATISTICS</div><canvas id="statsC" width="148" height="252"></canvas></div>
+    </div>
+    <div class="col">
+      <div class="panel" id="hdr"><span id="mode">-</span><span id="lines">LINES-000</span></div>
+      <div class="panel" id="boardP"><canvas id="boardC" width="240" height="480"></canvas></div>
+    </div>
+    <div class="col">
+      <div class="panel"><div class="label" id="topL">TOP</div><div class="val" id="top">000000</div>
+        <div class="label" style="margin-top:16px">SCORE</div><div class="val" id="score">000000</div></div>
+      <div class="panel"><div class="label">NEXT</div><canvas id="nextC" width="112" height="56"></canvas></div>
+      <div class="panel"><div class="label">LEVEL</div><div class="val" id="level">00</div></div>
+      <div class="panel"><div class="label">TIME</div><div class="val" id="time">00:00</div></div>
+      <div class="small">ESC PAUSE<br><span id="snd">M SOUND ON</span></div>
+    </div>
+    <div id="screen" hidden></div>
+    <div id="crt"></div>
+  </div>
+  <div id="touch">
+    <button data-a="hold">HOLD</button><button data-a="ccw">&#10226;</button><button data-a="cw">&#10227;</button><button data-a="pause">II</button>
+    <button data-a="left">&#9668;</button><button data-a="soft">&#9660;</button><button data-a="right">&#9658;</button><button data-a="hard">DROP</button>
+  </div>
+</div></div>
+
+<script>
+// ---------- constants ----------
+const COLS = 10, ROWS = 20, CELL = 24;
+const CLEAR_MS = 350, LOCK_MS = 500, MAX_RESETS = 15, DAS = 170, ARR = 50, SOFT_MS = 35;
+const TYPES = 'IJLOSTZ'.split('');
+const SHAPES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]],
+  O: [[1,1],[1,1]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+};
+// NES-style: 0 = white center w/ colored rim, 1 = solid color A, 2 = solid color B
+const STYLE = { I:0, O:0, T:0, J:1, S:1, L:2, Z:2 };
+// per-level color pairs, inspired by the NES palette cycle
+const PALETTES = [
+  ['#2038ec','#3cbcfc'], ['#00a800','#80d010'], ['#d800cc','#f878f8'], ['#2038ec','#58d854'],
+  ['#e40058','#58f898'], ['#58f898','#6888fc'], ['#d82800','#7c7c7c'], ['#6844fc','#a80020'],
+  ['#2038ec','#d82800'], ['#d82800','#fca044'],
+];
+const WHITE = '#e4e4e4';
+const FRAMES = [48,43,38,33,28,23,18,13,8,6,5,5,5,4,4,4,3,3,3,2];
+const gravityMs = lv => FRAMES[Math.min(lv, FRAMES.length - 1)] * 1000 / 60;
+const KICKS = [[0,0],[-1,0],[1,0],[0,-1],[-2,0],[2,0],[-1,-1],[1,-1]];
+const MODES = {
+  marathon: { name: 'MARATHON',  desc: 'ENDLESS. SPEEDS UP EVERY 10 LINES.' },
+  sprint:   { name: 'SPRINT 40', desc: 'CLEAR 40 LINES AS FAST AS YOU CAN.' },
+  zen:      { name: 'ZEN',       desc: 'NO SPEED-UP. NO GAME OVER. JUST STACK.' },
+  daily:    { name: 'DAILY',     desc: 'A NEW FIXED PIECE ORDER EVERY DAY.' },
+};
+const MODE_KEYS = Object.keys(MODES);
+const ACTIONS = [['left','MOVE LEFT'],['right','MOVE RIGHT'],['soft','SOFT DROP'],['hard','HARD DROP'],
+                 ['cw','ROTATE RIGHT'],['ccw','ROTATE LEFT'],['hold','HOLD'],['pause','PAUSE']];
+const DEFAULT_KEYS = { left:'ArrowLeft', right:'ArrowRight', soft:'ArrowDown', hard:' ', cw:'ArrowUp', ccw:'z', hold:'c', pause:'p' };
+
+// ---------- storage ----------
+const STORE_KEY = 'retroblocks.v1';
+let data;
+try { data = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { data = {}; }
+data.scores = data.scores || {};
+MODE_KEYS.forEach(m => data.scores[m] = data.scores[m] || []);
+data.played = data.played || {};
+data.settings = Object.assign({ startLevel: 0, ghost: true, sound: true, crt: true }, data.settings || {});
+data.settings.keys = Object.assign({}, DEFAULT_KEYS, data.settings.keys || {});
+data.name = data.name || 'PLAYER';
+const S = data.settings;
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch {} }
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const pad = (n, l = 2) => String(n).padStart(l, '0');
+const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+function hashStr(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function fmtTime(ms, precise) {
+  const m = Math.floor(ms / 60000), s = Math.floor(ms / 1000) % 60, cs = Math.floor(ms / 10) % 100;
+  return precise ? `${m}:${pad(s)}.${pad(cs)}` : `${pad(m)}:${pad(s)}`;
+}
+const normKey = k => k.length === 1 ? k.toLowerCase() : k;
+const KEY_NAMES = { ' ':'SPACE', ArrowLeft:'LEFT', ArrowRight:'RIGHT', ArrowUp:'UP', ArrowDown:'DOWN', Control:'CTRL', Escape:'ESC' };
+const keyName = k => KEY_NAMES[k] || k.toUpperCase();
+const actionFor = k => Object.keys(S.keys).find(a => S.keys[a] === k);
+const palette = lv => PALETTES[lv % PALETTES.length];
+
+// ---------- sound (square-wave chiptune bleeps) ----------
+let actx = null;
+function ensureAudio() {
+  if (!S.sound) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch {}
+}
+function tone(freq, dur, { type = 'square', vol = 0.06, slide = 0, delay = 0 } = {}) {
+  if (!S.sound || !actx) return;
+  try {
+    const t0 = actx.currentTime + delay, o = actx.createOscillator(), gn = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slide) o.frequency.linearRampToValueAtTime(Math.max(20, freq + slide), t0 + dur);
+    gn.gain.setValueAtTime(vol, t0); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(gn).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch {}
+}
+const seq = (notes, step, opts) => notes.forEach((f, i) => tone(f, step * 1.4, { ...opts, delay: i * step }));
+const SFX = {
+  move:   () => tone(200, 0.03, { vol: 0.03 }),
+  rotate: () => tone(420, 0.05, { vol: 0.04 }),
+  lock:   () => tone(110, 0.08, { type: 'triangle', vol: 0.1 }),
+  drop:   () => tone(180, 0.09, { slide: -120, vol: 0.06 }),
+  hold:   () => tone(300, 0.07, { slide: 200, vol: 0.04 }),
+  clear:  () => seq([523, 659, 784], 0.05),
+  tetris: () => seq([523, 659, 784, 1047, 1319], 0.06, { vol: 0.07 }),
+  level:  () => seq([392, 523, 659, 784], 0.07),
+  over:   () => seq([392, 330, 262, 196], 0.16, { type: 'triangle', vol: 0.12 }),
+  select: () => tone(660, 0.05, { vol: 0.04 }),
+  nav:    () => tone(330, 0.03, { vol: 0.03 }),
+};
+
+// ---------- scores ----------
+const isTimeMode = m => m === 'sprint';
+const cmp = m => isTimeMode(m) ? (a, b) => a.time - b.time : (a, b) => b.score - a.score || a.time - b.time;
+function listFor(m) {
+  let l = data.scores[m];
+  if (m === 'daily') l = l.filter(e => e.day === today());
+  return l.slice().sort(cmp(m)).slice(0, 10);
+}
+function qualifies(m, e) { const l = listFor(m); return l.length < 10 || cmp(m)(e, l[l.length - 1]) < 0; }
+function addScore(m, e) {
+  data.scores[m].push(e);
+  if (m === 'daily') data.scores[m] = data.scores[m].filter(x => x.day !== today()).slice(-100).concat(listFor(m));
+  else data.scores[m] = listFor(m);
+  save();
+}
+
+// ---------- game state ----------
+let g = null, state = 'menu', lastMode = 'marathon';
+const input = { das: null, soft: false, softT: 0 };
+const emptyBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+
+function newGame(mode) {
+  lastMode = mode;
+  const startLevel = (mode === 'marathon' || mode === 'zen') ? S.startLevel : 0;
+  g = {
+    mode, board: emptyBoard(), rng: mode === 'daily' ? mulberry32(hashStr(today())) : Math.random,
+    bag: [], next: null, piece: null, hold: null, canHold: true,
+    score: 0, lines: 0, startLevel, level: startLevel, pieces: 0, tetrises: 0, combo: -1, maxCombo: 0,
+    stats: Object.fromEntries(TYPES.map(t => [t, 0])), time: 0, dropAcc: 0, lockTimer: 0, lockResets: 0,
+    clearing: null, over: false, shake: 0, flash: 0, curtainT: 0,
+  };
+  input.das = null; input.soft = false;
+  g.next = takeBag();
+  spawn();
+}
+
+function takeBag() {
+  if (!g.bag.length) {
+    const b = TYPES.slice();
+    for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(g.rng() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+    g.bag = b;
+  }
+  return g.bag.pop();
+}
+
+function eachCell(m, fn) { m.forEach((row, y) => row.forEach((v, x) => v && fn(x, y))); }
+function collides(m, ox, oy) {
+  for (let y = 0; y < m.length; y++) for (let x = 0; x < m[y].length; x++) {
+    if (!m[y][x]) continue;
+    const nx = ox + x, ny = oy + y;
+    if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+    if (ny >= 0 && g.board[ny][nx]) return true;
+  }
+  return false;
+}
+const rotCW = m => m[0].map((_, i) => m.map(r => r[i]).reverse());
+const rotCCW = m => m[0].map((_, i) => m.map(r => r[r.length - 1 - i]));
+const grounded = () => collides(g.piece.m, g.piece.x, g.piece.y + 1);
+
+function spawn(type) {
+  const fromHold = !!type;
+  if (!type) { type = g.next; g.next = takeBag(); }
+  const m = SHAPES[type].map(r => r.slice());
+  g.piece = { type, m, x: Math.floor((COLS - m[0].length) / 2), y: type === 'I' ? -1 : 0 };
+  g.lockTimer = 0; g.lockResets = 0; g.dropAcc = 0;
+  if (!fromHold) { g.stats[type]++; g.pieces++; }
+  if (collides(m, g.piece.x, g.piece.y)) topOut();
+}
+
+function onMoved() {
+  if (grounded() && g.lockResets < MAX_RESETS) { g.lockTimer = 0; g.lockResets++; }
+}
+function shift(dir) {
+  const p = g.piece;
+  if (p && !collides(p.m, p.x + dir, p.y)) { p.x += dir; SFX.move(); onMoved(); return true; }
+  return false;
+}
+function rotate(dir) {
+  const p = g.piece;
+  if (p.type === 'O') return;
+  const m = dir > 0 ? rotCW(p.m) : rotCCW(p.m);
+  for (const [dx, dy] of KICKS) {
+    if (!collides(m, p.x + dx, p.y + dy)) { p.m = m; p.x += dx; p.y += dy; SFX.rotate(); onMoved(); return; }
+  }
+}
+function softDrop() {
+  const p = g.piece;
+  if (!p) return;
+  if (!collides(p.m, p.x, p.y + 1)) { p.y++; g.score += 1; g.lockTimer = 0; g.dropAcc = 0; }
+  else lock();
+}
+function hardDrop() {
+  const p = g.piece;
+  let n = 0;
+  while (!collides(p.m, p.x, p.y + 1)) { p.y++; n++; }
+  g.score += 2 * n;
+  SFX.drop();
+  lock();
+}
+function hold() {
+  if (!g.canHold) return;
+  const t = g.piece.type;
+  g.canHold = false; SFX.hold();
+  if (g.hold) { const h = g.hold; g.hold = t; spawn(h); }
+  else { g.hold = t; spawn(); }
+}
+
+function lock() {
+  const p = g.piece;
+  let above = false;
+  eachCell(p.m, (cx, cy) => {
+    const x = p.x + cx, y = p.y + cy;
+    if (y < 0) above = true; else g.board[y][x] = p.type;
+  });
+  g.piece = null; g.canHold = true; g.lockTimer = 0;
+  if (above) return topOut();
+  const rows = [];
+  for (let y = 0; y < ROWS; y++) if (g.board[y].every(Boolean)) rows.push(y);
+  if (rows.length) {
+    g.combo++;
+    g.clearing = { rows, t: 0 };
+    if (rows.length === 4) { SFX.tetris(); g.shake = 350; g.flash = 250; } else SFX.clear();
+  } else {
+    g.combo = -1;
+    SFX.lock();
+    spawn();
+  }
+}
+
+function finishClear() {
+  const { rows } = g.clearing, n = rows.length;
+  g.clearing = null;
+  g.board = g.board.filter((_, y) => !rows.includes(y));
+  while (g.board.length < ROWS) g.board.unshift(Array(COLS).fill(0));
+  g.lines += n;
+  g.score += [0, 40, 100, 300, 1200][n] * (g.level + 1);
+  if (g.combo > 0) g.score += 50 * g.combo * (g.level + 1);
+  g.maxCombo = Math.max(g.maxCombo, g.combo);
+  if (n === 4) g.tetrises++;
+  if (g.mode !== 'zen') {
+    const lv = Math.max(g.startLevel, Math.floor(g.lines / 10));
+    if (lv > g.level) { g.level = lv; SFX.level(); }
+  }
+  if (g.mode === 'sprint' && g.lines >= 40) return endGame('complete');
+  spawn();
+}
+
+function topOut() {
+  if (g.mode === 'zen') {   // zen: wipe the board and keep going
+    g.board = emptyBoard(); g.flash = 400; g.piece = null; SFX.level();
+    spawn();
+    return;
+  }
+  g.piece = null;
+  endGame('topout');
+}
+
+function endGame(kind) {
+  g.over = true; g.piece = null; input.das = null; input.soft = false;
+  data.played[g.mode] = (data.played[g.mode] || 0) + 1;
+  save();
+  const entry = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: data.name, score: g.score, lines: g.mode === 'sprint' ? Math.min(g.lines, 40) : g.lines,
+    level: g.level, time: Math.round(g.time), pieces: g.pieces, tetrises: g.tetrises,
+    maxCombo: Math.max(0, g.maxCombo), date: new Date().toISOString(), day: today(),
+  };
+  const eligible = g.mode === 'sprint' ? kind === 'complete' : g.score > 0;
+  const q = eligible && qualifies(g.mode, entry);
+  const title = kind === 'complete' ? 'SPRINT CLEAR!' : kind === 'ended' ? 'GAME ENDED' : 'GAME OVER';
+  if (kind === 'complete') SFX.level(); else SFX.over();
+  state = 'ending';
+  const mode = g.mode;
+  setTimeout(() => showScreen('results', { entry, q, title, mode }), kind === 'topout' ? 1100 : 300);
+}
+
+// ---------- input ----------
+function press(a) {
+  if (state !== 'playing' || !g || g.over) return;
+  if (a === 'pause') return pause();
+  if (a === 'left' || a === 'right') {
+    const dir = a === 'left' ? -1 : 1;
+    if (g.piece && !g.clearing) shift(dir);
+    input.das = { dir, t: 0, arr: 0 };
+    return;
+  }
+  if (a === 'soft') { input.soft = true; input.softT = 0; if (g.piece && !g.clearing) softDrop(); return; }
+  if (!g.piece || g.clearing) return;
+  if (a === 'hard') hardDrop();
+  else if (a === 'cw') rotate(1);
+  else if (a === 'ccw') rotate(-1);
+  else if (a === 'hold') hold();
+}
+function release(a) {
+  if ((a === 'left' && input.das?.dir === -1) || (a === 'right' && input.das?.dir === 1)) input.das = null;
+  if (a === 'soft') input.soft = false;
+}
+function pause() {
+  if (state !== 'playing') return;
+  input.das = null; input.soft = false;
+  SFX.select();
+  showScreen('paused');
+}
+
+let rebinding = null;
+addEventListener('keydown', e => {
+  ensureAudio();
+  if (rebinding) {
+    e.preventDefault();
+    if (e.key !== 'Escape') {
+      const k = normKey(e.key), other = actionFor(k);
+      if (other && other !== rebinding) S.keys[other] = S.keys[rebinding];  // swap on conflict
+      S.keys[rebinding] = k; save(); SFX.select();
+    }
+    rebinding = null; rerender();
+    return;
+  }
+  if (e.target.tagName === 'INPUT') return;
+  const k = normKey(e.key);
+  if (state === 'playing') {
+    const a = k === 'Escape' ? 'pause' : actionFor(k);
+    if (a) { e.preventDefault(); if (!e.repeat) press(a); }
+    else if (k === 'm') toggleSound();
+    return;
+  }
+  if (k === 'm') return toggleSound();
+  if (state === 'paused' && k === S.keys.pause) { e.preventDefault(); return run('resume'); }
+  menuKey(e);
+});
+addEventListener('keyup', e => { const a = actionFor(normKey(e.key)); if (a) release(a); });
+addEventListener('blur', () => { if (state === 'playing') pause(); });
+
+function toggleSound() { S.sound = !S.sound; save(); ensureAudio(); SFX.select(); if (state === 'settings') rerender(); }
+
+// touch buttons
+document.querySelectorAll('#touch button').forEach(b => {
+  const a = b.dataset.a;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); try { b.setPointerCapture(e.pointerId); } catch {} press(a); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, () => release(a)));
+});
+
+// ---------- screens ----------
+const scr = $('#screen');
+let screenCtx = {};
+const onoff = v => v ? 'ON' : 'OFF';
+const row = (label, val, k) =>
+  `<button class="btn row" data-act="set:${k}:1" data-left="set:${k}:-1" data-right="set:${k}:1"><span>${label}</span><span>&#9668; ${val} &#9658;</span></button>`;
+const RANKS = ['1ST','2ND','3RD','4TH','5TH','6TH','7TH','8TH','9TH','10TH'];
+
+function scoreTable(m, hl) {
+  const l = listFor(m), t = isTimeMode(m);
+  const head = t ? ['', 'NAME', 'TIME', 'PIECES', 'DATE'] : ['', 'NAME', 'SCORE', 'LINES', 'LV', 'DATE'];
+  let body = '';
+  for (let i = 0; i < 10; i++) {
+    const e = l[i];
+    if (!e) { body += `<tr class="empty"><td>${RANKS[i]}</td><td class="name">------</td>${'<td>-</td>'.repeat(head.length - 2)}</tr>`; continue; }
+    const d = new Date(e.date), ds = `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+    const cols = t ? [fmtTime(e.time, true), e.pieces, ds] : [pad(e.score, 6), e.lines, pad(e.level), ds];
+    const cls = (i === 0 ? 'gold ' : '') + (e.id === hl ? 'hl' : '');
+    body += `<tr class="${cls}"><td>${RANKS[i]}</td><td class="name">${esc(e.name)}</td>${cols.map(c => `<td>${c}</td>`).join('')}</tr>`;
+  }
+  return `<table><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${body}</table>`;
+}
+
+const SCREENS = {
+  menu: () => `
+    <div class="title"><span>RETRO</span><span>BLOCKS</span></div>
+    <div class="menu">
+      ${MODE_KEYS.map(m => `<button class="btn" data-act="start:${m}" data-desc="${MODES[m].desc}">${MODES[m].name}</button>`).join('')}
+      <div class="sep"></div>
+      <button class="btn" data-act="scores" data-desc="TOP 10 FOR EACH MODE.">HIGH SCORES</button>
+      <button class="btn" data-act="settings" data-desc="START LEVEL, GHOST, SOUND, CRT, CONTROLS.">SETTINGS</button>
+    </div>
+    <p class="desc" id="desc"></p>
+    <p class="foot">UP/DOWN SELECT &middot; ENTER START &middot; M SOUND</p>`,
+
+  scores: c => `
+    <h2>HIGH SCORES</h2>
+    <button class="btn tab" data-act="tab:1" data-left="tab:-1" data-right="tab:1"><span data-act="tab:-1">&#9668;</span>${MODES[c.mode].name}<span data-act="tab:1">&#9658;</span></button>
+    <p class="sub">${c.mode === 'daily' ? 'TODAY ' + today() + ' &middot; ' : ''}GAMES PLAYED ${data.played[c.mode] || 0}</p>
+    ${scoreTable(c.mode, c.highlight)}
+    <div class="menu" style="min-width:200px">
+      ${c.fromGame ? `<button class="btn" data-act="start:${c.mode}">PLAY AGAIN</button>` : ''}
+      <button class="btn" data-act="menu" data-back="menu">MENU</button>
+    </div>`,
+
+  settings: () => `
+    <h2>SETTINGS</h2>
+    <div class="menu">
+      ${row('START LEVEL', pad(S.startLevel), 'lvl')}
+      ${row('GHOST PIECE', onoff(S.ghost), 'ghost')}
+      ${row('SOUND', onoff(S.sound), 'sound')}
+      ${row('CRT EFFECT', onoff(S.crt), 'crt')}
+      <button class="btn" data-act="controls">CONTROLS</button>
+      <div class="sep"></div>
+      <button class="btn" data-act="menu" data-back="menu">BACK</button>
+    </div>
+    <p class="desc">START LEVEL APPLIES TO MARATHON AND ZEN.<br>LEFT/RIGHT TO CHANGE.</p>`,
+
+  controls: () => `
+    <h2>CONTROLS</h2>
+    <div class="menu">
+      ${ACTIONS.map(([a, label]) => `<button class="btn row" data-act="bind:${a}"><span>${label}</span><span>${rebinding === a ? 'PRESS KEY' : esc(keyName(S.keys[a]))}</span></button>`).join('')}
+      <div class="sep"></div>
+      <button class="btn" data-act="resetkeys">RESET DEFAULTS</button>
+      <button class="btn" data-act="settings" data-back="settings">BACK</button>
+    </div>
+    <p class="desc">ENTER TO REBIND &middot; ESC ALWAYS PAUSES &middot; M TOGGLES SOUND</p>`,
+
+  paused: () => `
+    <h2>PAUSED</h2>
+    <div class="menu" data-back-holder>
+      <button class="btn" data-act="resume" data-back="resume">RESUME</button>
+      <button class="btn" data-act="start:${g.mode}">RESTART</button>
+      <button class="btn" data-act="end">END GAME</button>
+      <button class="btn" data-act="quit">QUIT TO MENU</button>
+    </div>
+    <p class="desc">END GAME SAVES YOUR SCORE. QUIT DOES NOT.</p>`,
+
+  results: c => {
+    const e = c.entry, lpm = e.time > 0 ? (e.lines / (e.time / 60000)).toFixed(1) : '0.0';
+    const stats = [['SCORE', pad(e.score, 6)], ['LINES', e.lines], ['LEVEL', pad(e.level)],
+      ['TIME', fmtTime(e.time, c.mode === 'sprint')], ['LINES/MIN', lpm], ['TETRISES', e.tetrises],
+      ['MAX COMBO', e.maxCombo], ['PIECES', e.pieces]];
+    return `
+      <h2>${c.title}</h2>
+      <p class="sub">${MODES[c.mode].name}</p>
+      <div class="stats">${stats.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>
+      ${c.q ? `
+        <form id="nameForm">
+          <p class="accent">NEW HIGH SCORE!</p>
+          <label for="nameIn">ENTER NAME</label>
+          <input id="nameIn" maxlength="6" value="${esc(data.name)}" autocomplete="off" spellcheck="false">
+          <button class="btn" type="submit">SAVE</button>
+        </form>` : `
+        <div class="menu" style="min-width:220px">
+          <button class="btn" data-act="start:${c.mode}">PLAY AGAIN</button>
+          <button class="btn" data-act="scoresFor:${c.mode}">HIGH SCORES</button>
+          <button class="btn" data-act="menu" data-back="menu">MENU</button>
+        </div>`}`;
+  },
+};
+
+function showScreen(name, ctx = {}, focusIdx = 0) {
+  state = name; screenCtx = ctx;
+  scr.hidden = false;
+  scr.innerHTML = SCREENS[name](ctx);
+  const nameIn = scr.querySelector('#nameIn');
+  if (nameIn) { nameIn.focus(); nameIn.select(); return; }
+  const btns = scr.querySelectorAll('.btn');
+  if (btns.length) btns[Math.min(focusIdx, btns.length - 1)].focus();
+}
+function rerender() {
+  const i = [...scr.querySelectorAll('.btn')].indexOf(document.activeElement);
+  showScreen(state, screenCtx, Math.max(0, i));
+}
+function hideScreen() { scr.hidden = true; scr.innerHTML = ''; }
+
+const ACTS = {
+  start: m => { newGame(m); hideScreen(); state = 'playing'; },
+  menu: () => { g = null; showScreen('menu'); },
+  scores: () => showScreen('scores', { mode: lastMode }),
+  scoresFor: m => showScreen('scores', { mode: m, fromGame: true }),
+  tab: d => {
+    const i = (MODE_KEYS.indexOf(screenCtx.mode) + Number(d) + MODE_KEYS.length) % MODE_KEYS.length;
+    showScreen('scores', { ...screenCtx, mode: MODE_KEYS[i], highlight: null });
+  },
+  settings: () => showScreen('settings'),
+  controls: () => showScreen('controls'),
+  set: (k, d) => {
+    d = Number(d);
+    if (k === 'lvl') S.startLevel = (S.startLevel + d + 20) % 20;
+    else S[k] = !S[k];
+    if (k === 'crt') document.body.classList.toggle('crt', S.crt);
+    if (k === 'sound') ensureAudio();
+    save(); rerender();
+  },
+  bind: a => { rebinding = a; rerender(); },
+  resetkeys: () => { S.keys = { ...DEFAULT_KEYS }; save(); rerender(); },
+  resume: () => { hideScreen(); state = 'playing'; },
+  end: () => { hideScreen(); endGame('ended'); },
+  quit: () => ACTS.menu(),
+};
+function run(act) {
+  const [n, ...args] = act.split(':');
+  if (ACTS[n]) { SFX.select(); ACTS[n](...args); }
+}
+
+function menuKey(e) {
+  const btns = [...scr.querySelectorAll('.btn')];
+  if (scr.hidden || !btns.length) return;
+  let i = btns.indexOf(document.activeElement);
+  const k = e.key;
+  if (k === 'ArrowDown' || k === 'ArrowUp') {
+    e.preventDefault();
+    i = i < 0 ? 0 : (i + (k === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length;
+    btns[i].focus(); SFX.nav();
+  } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    const a = document.activeElement?.dataset?.[k === 'ArrowLeft' ? 'left' : 'right'];
+    if (a) { e.preventDefault(); run(a); }
+  } else if (k === 'Escape') {
+    const b = scr.querySelector('[data-back]');
+    if (b) { e.preventDefault(); run(b.dataset.back); }
+  }
+}
+scr.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]');
+  if (t && scr.contains(t)) { e.stopPropagation(); run(t.dataset.act); }
+});
+scr.addEventListener('mousemove', e => {
+  const b = e.target.closest('.btn');
+  if (b && document.activeElement !== b) b.focus();
+});
+scr.addEventListener('focusin', e => {
+  const d = scr.querySelector('#desc');
+  if (d && e.target.dataset.desc) d.textContent = e.target.dataset.desc;
+});
+scr.addEventListener('submit', e => {
+  e.preventDefault();
+  const name = ($('#nameIn').value.toUpperCase().replace(/[^A-Z0-9 .!\-]/g, '').trim() || 'PLAYER').slice(0, 6);
+  data.name = name;
+  const { entry, mode } = screenCtx;
+  entry.name = name;
+  addScore(mode, entry);
+  SFX.select();
+  showScreen('scores', { mode, highlight: entry.id, fromGame: true });
+});
+
+// ---------- rendering ----------
+const bctx = $('#boardC').getContext('2d');
+const el = { mode: $('#mode'), lines: $('#lines'), top: $('#top'), topL: $('#topL'), score: $('#score'),
+             level: $('#level'), time: $('#time'), snd: $('#snd'), boardP: $('#boardP') };
+function setText(node, v) { v = String(v); if (node.textContent !== v) node.textContent = v; }
+
+function drawBlock(c, px, py, size, type, lv, alpha = 1) {
+  const [c1, c2] = palette(lv), u = size / 8, st = STYLE[type];
+  c.globalAlpha = alpha;
+  c.fillStyle = st === 2 ? c2 : c1;
+  c.fillRect(px, py, 7 * u, 7 * u);
+  c.fillStyle = WHITE;
+  c.fillRect(px, py, u, u);
+  if (st === 0) c.fillRect(px + u, py + u, 5 * u, 5 * u);
+  else { c.fillRect(px + u, py + u, 2 * u, u); c.fillRect(px + u, py + 2 * u, u, u); }
+  c.globalAlpha = 1;
+}
+
+function drawMini(canvas, type, lv, alpha = 1, size = 24) {
+  const c = canvas.getContext('2d');
+  c.clearRect(0, 0, canvas.width, canvas.height);
+  if (!type) return;
+  const m = SHAPES[type];
+  let x0 = 9, x1 = -1, y0 = 9, y1 = -1;
+  eachCell(m, (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+  const ox = Math.round((canvas.width - (x1 - x0 + 1) * size) / 2) - x0 * size;
+  const oy = Math.round((canvas.height - (y1 - y0 + 1) * size) / 2) - y0 * size;
+  eachCell(m, (x, y) => drawBlock(c, ox + x * size, oy + y * size, size, type, lv, alpha));
+}
+
+let statsKey = '';
+function drawStats() {
+  const lv = g ? g.level : 0;
+  const key = lv + '|' + (g ? TYPES.map(t => g.stats[t]).join(',') : '');
+  if (key === statsKey) return;
+  statsKey = key;
+  const cv = $('#statsC'), c = cv.getContext('2d');
+  c.clearRect(0, 0, cv.width, cv.height);
+  c.font = '12px "Press Start 2P", monospace'; c.textBaseline = 'middle'; c.fillStyle = '#c84030';
+  TYPES.forEach((t, i) => {
+    const m = SHAPES[t], size = 16, rowY = i * 36;
+    let x0 = 9, x1 = -1, y0 = 9, y1 = -1;
+    eachCell(m, (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+    const ox = 8 + Math.round((64 - (x1 - x0 + 1) * size) / 2) - x0 * size;
+    const oy = rowY + Math.round((36 - (y1 - y0 + 1) * size) / 2) - y0 * size;
+    eachCell(m, (x, y) => drawBlock(c, ox + x * size, oy + y * size, size, t, lv));
+    c.fillStyle = '#c84030';
+    c.fillText(pad(g ? g.stats[t] : 0, 3), 92, rowY + 18);
+  });
+}
+
+function drawBoard() {
+  const c = bctx;
+  c.fillStyle = '#000'; c.fillRect(0, 0, COLS * CELL, ROWS * CELL);
+  if (!g) return;
+  const lv = g.level;
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const v = g.board[y][x];
+    if (v) drawBlock(c, x * CELL, y * CELL, CELL, v, lv);
+  }
+  if (g.clearing) {   // NES-style: rows wipe out from the center
+    const k = Math.min(5, Math.floor(g.clearing.t / CLEAR_MS * 5) + 1);
+    c.fillStyle = '#000';
+    g.clearing.rows.forEach(y => c.fillRect((5 - k) * CELL, y * CELL, 2 * k * CELL, CELL));
+  }
+  const p = g.piece;
+  if (p) {
+    if (S.ghost) {
+      let gy = p.y;
+      while (!collides(p.m, p.x, gy + 1)) gy++;
+      c.strokeStyle = palette(lv)[0]; c.globalAlpha = 0.55; c.lineWidth = 2;
+      eachCell(p.m, (x, y) => { if (gy + y >= 0) c.strokeRect((p.x + x) * CELL + 2, (gy + y) * CELL + 2, 17, 17); });
+      c.globalAlpha = 1;
+    }
+    eachCell(p.m, (x, y) => { if (p.y + y >= 0) drawBlock(c, (p.x + x) * CELL, (p.y + y) * CELL, CELL, p.type, lv); });
+  }
+  if (g.flash > 0) {
+    c.fillStyle = `rgba(255,255,255,${Math.min(1, g.flash / 250) * 0.22})`;
+    c.fillRect(0, 0, COLS * CELL, ROWS * CELL);
+  }
+  if (g.curtainT > 0) {   // game-over curtain
+    const n = Math.min(ROWS, Math.floor(g.curtainT / 45));
+    for (let y = 0; y < n; y++) {
+      c.fillStyle = '#34344a'; c.fillRect(0, y * CELL, COLS * CELL, CELL - 3);
+      c.fillStyle = '#56567a'; c.fillRect(0, y * CELL, COLS * CELL, 3);
+    }
+  }
+}
+
+function renderPanels() {
+  const mode = g ? g.mode : lastMode, best = listFor(mode)[0];
+  setText(el.mode, g ? MODES[g.mode].name : '-');
+  setText(el.lines, !g ? 'LINES-000' : g.mode === 'sprint' ? `LINES-${pad(Math.min(g.lines, 40))}/40` : `LINES-${pad(g.lines, 3)}`);
+  setText(el.topL, isTimeMode(mode) ? 'BEST' : 'TOP');
+  setText(el.top, best ? (isTimeMode(mode) ? fmtTime(best.time, true) : pad(best.score, 6)) : (isTimeMode(mode) ? '-:--.--' : '000000'));
+  setText(el.score, pad(g ? g.score : 0, 6));
+  setText(el.level, pad(g ? g.level : 0));
+  setText(el.time, fmtTime(g ? g.time : 0, mode === 'sprint'));
+  setText(el.snd, `M SOUND ${onoff(S.sound)}`);
+  drawMini($('#nextC'), g?.next, g?.level || 0);
+  drawMini($('#holdC'), g?.hold, g?.level || 0, g && !g.canHold ? 0.35 : 1);
+  drawStats();
+  el.boardP.style.transform = g && g.shake > 0
+    ? `translate(${Math.round(Math.random() * 6 - 3)}px,${Math.round(Math.random() * 6 - 3)}px)` : '';
+}
+
+// ---------- main loop ----------
+function update(dt) {
+  if (g.clearing) { g.clearing.t += dt; if (g.clearing.t >= CLEAR_MS) finishClear(); return; }
+  g.time += dt;
+  if (!g.piece) return;
+  if (input.das) {
+    const d = input.das;
+    d.t += dt;
+    if (d.t >= DAS) { d.arr += dt; while (d.arr >= ARR) { d.arr -= ARR; if (!shift(d.dir)) { d.arr = 0; break; } } }
+  }
+  if (input.soft) {
+    input.softT += dt;
+    while (input.softT >= SOFT_MS) { input.softT -= SOFT_MS; softDrop(); if (!g.piece || g.clearing || g.over) return; }
+  }
+  const p = g.piece;
+  if (collides(p.m, p.x, p.y + 1)) {
+    g.lockTimer += dt; g.dropAcc = 0;
+    if (g.lockTimer >= LOCK_MS) lock();
+  } else {
+    g.dropAcc += dt;
+    const iv = gravityMs(g.level);
+    while (g.dropAcc >= iv) {
+      g.dropAcc -= iv;
+      if (collides(p.m, p.x, p.y + 1)) { g.dropAcc = 0; break; }
+      p.y++; g.lockTimer = 0;
+    }
+  }
+}
+
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(t - last, 100);
+  last = t;
+  if (g) {
+    if (g.shake > 0) g.shake -= dt;
+    if (g.flash > 0) g.flash -= dt;
+    if (state === 'playing' && !g.over) update(dt);
+    if (state === 'ending') g.curtainT += dt;
+  }
+  drawBoard();
+  renderPanels();
+  requestAnimationFrame(frame);
+}
+
+// ---------- layout / boot ----------
+if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+document.body.classList.toggle('crt', S.crt);
+function fit() {
+  const W = 660, H = 580 + (document.body.classList.contains('touch') ? 200 : 0);
+  const s = Math.min((innerWidth - 16) / W, (innerHeight - 16) / H, 1.6);
+  $('#scaler').style.transform = `scale(${s})`;
+  $('#outer').style.width = W * s + 'px';
+  $('#outer').style.height = H * s + 'px';
+}
+addEventListener('resize', fit);
+fit();
+document.fonts?.ready.then(() => { statsKey = ''; });
+showScreen('menu');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
